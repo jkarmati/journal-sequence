@@ -400,7 +400,7 @@ const Core = (() => {
         <li>Repository access : <i>Only select repositories</i> → le dépôt ci-dessous.</li>
         <li>Permissions : <i>Contents</i> → <i>Read and write</i>. Puis copie le jeton (il commence par github_pat_).</li>
       </ol>
-      <div class="champ"><label for="jDepot">Dépôt du journal</label><input id="jDepot" value="${esc(depotChoisi())}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="champ"><label for="jDepot">Dépôt du journal (le dépôt PRIVÉ des données)</label><input id="jDepot" value="${esc(depotChoisi())}" autocomplete="off" autocapitalize="off" spellcheck="false"><small style="color:var(--gris)">Pas journal-sequence, qui contient seulement cette page. Pendant les essais : jkarmati/journal-3e-test ; ensuite : jkarmati/journal-3e-donnees.</small></div>
       <div class="champ"><label for="jJeton">Jeton GitHub</label><input id="jJeton" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
       <div class="outils"><button class="btn principal" id="jOk">Relier cet appareil</button></div>
       <small style="color:var(--gris)">Un jeton par appareil (téléphone, PC) : tu pourras en révoquer un sur GitHub sans toucher aux autres.</small>`;
