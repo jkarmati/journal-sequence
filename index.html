@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Le jeton GitHub ne peut partir que vers l'API GitHub (et vers le simulateur local pendant les essais). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com http://localhost:* http://127.0.0.1:*; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>Journal de séquence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Outil de classe : bandeau ardoise des fiches, lecture rapide, gros boutons tactiles. */
+  --ardoise: #36566b;
+  --ardoise-clair: #ebf0f3;
+  --fond: #f6f8f9;
+  --carte: #ffffff;
+  --encre: #1c2328;
+  --gris: #5d6b75;
+  --filet: #d3dbe0;
+  --ok: #2e7d4f;   --ok-fond: #e3f2e8;
+  --part: #9a6a00; --part-fond: #fbf0d6;
+  --non: #b3392f;  --non-fond: #f9e3e1;
+  --font: "Atkinson Hyperlegible", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ardoise: #8fb3c9; --ardoise-clair: #22323d; --fond: #12181c; --carte: #1b2329; --encre: #e7edf1; --gris: #9eacb6; --filet: #33424c;
+    --ok: #7cc79a; --ok-fond: #1d3326; --part: #e2b54f; --part-fond: #3a3018; --non: #f08a80; --non-fond: #3d2220;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ardoise: #8fb3c9; --ardoise-clair: #22323d; --fond: #12181c; --carte: #1b2329; --encre: #e7edf1; --gris: #9eacb6; --filet: #33424c;
+  --ok: #7cc79a; --ok-fond: #1d3326; --part: #e2b54f; --part-fond: #3a3018; --non: #f08a80; --non-fond: #3d2220;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--fond); color: var(--encre); font: 16px/1.5 var(--font); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ardoise); outline-offset: 2px; }
+.top { background: var(--ardoise); color: #fff; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+:root[data-theme="dark"] .top { color: #0f171c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .top { color: #0f171c; } }
+.top h1 { font-size: 1.1rem; margin: 0; font-weight: 700; flex: 1 1 auto; text-wrap: balance; }
+.top select { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.4); border-radius: 8px; padding: 6px 10px; color: inherit; max-width: 100%; }
+.top select option { color: #1c2328; }
+.vues { display: flex; gap: 4px; }
+.vues button { background: transparent; border: 1px solid rgba(255,255,255,.45); color: inherit; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.vues button[aria-pressed="true"] { background: #fff; color: #36566b; border-color: #fff; font-weight: 700; }
+main { max-width: 860px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+.bandeau { border-radius: 10px; padding: 10px 14px; background: var(--ardoise-clair); color: var(--encre); }
+.bandeau.alerte { background: var(--non-fond); color: var(--non); }
+.seances { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; position: sticky; top: 0; z-index: 2; background: var(--fond); padding-top: 4px; }
+.chip { flex: 0 0 auto; border: 2px solid var(--filet); background: var(--carte); border-radius: 12px; padding: 6px 12px; cursor: pointer; text-align: left; min-width: 92px; }
+.chip b { display: block; }
+.chip small { color: var(--gris); font-variant-numeric: tabular-nums; }
+.chip[aria-current="true"] { border-color: var(--ardoise); box-shadow: 0 0 0 1px var(--ardoise); }
+.chip.ok { border-left: 6px solid var(--ok); }
+.chip.attention { border-left: 6px solid var(--part); }
+.carte { background: var(--carte); border: 1px solid var(--filet); border-radius: 12px; padding: 14px 16px; }
+.entete-seance { display: grid; gap: 8px; }
+.entete-seance h2 { margin: 0; font-size: 1.25rem; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; color: var(--gris); font-size: .95rem; }
+.meta label { display: flex; gap: 6px; align-items: center; }
+.meta input[type=date] { border: 1px solid var(--filet); border-radius: 8px; padding: 4px 8px; background: var(--carte); }
+.temps { font-variant-numeric: tabular-nums; }
+.temps.depasse { color: var(--non); font-weight: 700; }
+.essentiel { white-space: pre-line; font-size: .95rem; border-left: 4px solid var(--ardoise); padding: 4px 10px; background: var(--ardoise-clair); border-radius: 0 8px 8px 0; }
+.outils { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { border: 1px solid var(--filet); background: var(--carte); padding: 8px 14px; border-radius: 10px; cursor: pointer; min-height: 44px; }
+.btn.principal { background: var(--ardoise); border-color: var(--ardoise); color: #fff; font-weight: 700; }
+:root[data-theme="dark"] .btn.principal { color: #0f171c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.principal { color: #0f171c; } }
+.btn.discret { border-style: dashed; color: var(--gris); }
+.liste { display: grid; gap: 10px; }
+.phase { background: var(--carte); border: 1px solid var(--filet); border-left: 6px solid var(--filet); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.phase.fait { border-left-color: var(--ok); }
+.phase.partiel { border-left-color: var(--part); }
+.phase.non { border-left-color: var(--non); }
+.phase.abandon { opacity: .7; }
+.ligne1 { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.horaire { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ardoise); min-width: 52px; }
+.nom { font-weight: 700; }
+.tag { font-size: .8rem; padding: 1px 8px; border-radius: 999px; background: var(--ardoise-clair); color: var(--ardoise); }
+.tag.rep { background: var(--part-fond); color: var(--part); }
+.eleves { margin: 0; }
+details.prof summary { cursor: pointer; color: var(--gris); font-size: .92rem; }
+details.prof div { white-space: pre-line; font-size: .92rem; padding-top: 4px; }
+.statuts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.statuts button { min-height: 44px; border-radius: 10px; border: 2px solid var(--filet); background: var(--carte); cursor: pointer; font-weight: 700; }
+.statuts button[data-v="fait"][aria-pressed="true"] { background: var(--ok-fond); border-color: var(--ok); color: var(--ok); }
+.statuts button[data-v="partiel"][aria-pressed="true"] { background: var(--part-fond); border-color: var(--part); color: var(--part); }
+.statuts button[data-v="non"][aria-pressed="true"] { background: var(--non-fond); border-color: var(--non); color: var(--non); }
+.suite { display: grid; gap: 8px; padding: 10px; background: var(--fond); border-radius: 10px; }
+.suite .choix { display: flex; flex-wrap: wrap; gap: 6px; }
+.suite .choix button { border: 1px solid var(--filet); background: var(--carte); border-radius: 999px; padding: 6px 12px; cursor: pointer; min-height: 40px; }
+.suite .choix button[aria-pressed="true"] { background: var(--ardoise); border-color: var(--ardoise); color: #fff; }
+:root[data-theme="dark"] .suite .choix button[aria-pressed="true"] { color: #0f171c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .suite .choix button[aria-pressed="true"] { color: #0f171c; } }
+.suite select, .suite input, .note input, .champ input, .champ textarea, .champ select { border: 1px solid var(--filet); border-radius: 8px; padding: 8px 10px; background: var(--carte); width: 100%; }
+.attente { color: var(--part); font-weight: 700; font-size: .92rem; }
+.note { display: grid; gap: 4px; }
+.note label, .champ label { font-size: .85rem; color: var(--gris); }
+.pronote h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.pronote .bloc { display: grid; gap: 4px; margin-top: 10px; }
+.pronote pre { margin: 0; white-space: pre-wrap; font: inherit; background: var(--fond); border: 1px solid var(--filet); border-radius: 8px; padding: 8px 10px; }
+.pronote .tete { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vide { color: var(--gris); font-style: italic; }
+.envoi { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--filet); display: grid; gap: 8px; }
+.envoi .etat { border-radius: 8px; padding: 8px 10px; background: var(--ardoise-clair); }
+.envoi .etat.ok { background: var(--ok-fond); color: var(--ok); }
+.envoi .etat.att { background: var(--part-fond); color: var(--part); }
+.envoi .etat.err { background: var(--non-fond); color: var(--non); }
+.envoi small { color: var(--gris); }
+.impro-form { display: grid; gap: 8px; grid-template-columns: 1fr 90px; }
+.impro-form .plein { grid-column: 1 / -1; }
+.edit-phase { display: grid; gap: 8px; grid-template-columns: 90px 1fr; border: 1px solid var(--filet); border-radius: 12px; padding: 12px; background: var(--carte); }
+.edit-phase .plein { grid-column: 1 / -1; }
+.edit-phase .actions { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.champ { display: grid; gap: 4px; }
+.lien-note { justify-self: start; background: none; border: none; padding: 2px 0; color: var(--gris); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-size: .9rem; }
+textarea { resize: vertical; min-height: 60px; }
+.barre-edition { position: sticky; bottom: 0; background: var(--fond); padding: 10px 0; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--filet); }
+.toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--encre); color: var(--fond); padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.visible { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+.connexion { max-width: 560px; justify-self: center; width: 100%; display: grid; gap: 12px; }
+.connexion h2 { margin: 0; font-size: 1.2rem; }
+.connexion ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.connexion .erreur { color: var(--non); font-weight: 700; }
+.pc { font-size: .9rem; color: var(--gris); }
+.pc.alerte { color: var(--non); font-weight: 700; }
+@media (max-width: 480px) {
+  .edit-phase { grid-template-columns: 1fr; }
+  .statuts button { font-size: .95rem; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Journal de séquence · 3e3</h1>
+  <label for="choixSeq" style="position:absolute;left:-9999px">Séquence</label>
+  <select id="choixSeq" aria-label="Séquence"></select>
+  <nav class="vues" aria-label="Vue">
+    <button id="vueSuivi" aria-pressed="true">Suivi</button>
+    <button id="vueDeroule" aria-pressed="false">Déroulé</button>
+    <button id="vueSauve" aria-pressed="false">Sauvegarde</button>
+  </nav>
+</header>
+<main id="app">
+  <div class="bandeau" id="etat">Chargement de tes séquences…</div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="depot-github.js"></script>
+<script>
+// ===== Logique pure du journal (testable hors navigateur) =====
+const Core = (() => {
+  const STATUTS = { fait: 'Fait', partiel: 'En partie', non: 'Non fait' };
+  const SUITES = { reporter: 'Reporté', ti: 'Au TI', devoir: 'En devoir', abandon: 'Abandonné' };
+
+  function seanceById(seq, id) { return (seq.seances || []).find(s => s.id === id) || null; }
+  function seanceIndex(seq, id) { return (seq.seances || []).findIndex(s => s.id === id); }
+
+  // Retrouve la phase d'origine d'une clé (« p3 » ou « r:S1:p3 », éventuellement en chaîne).
+  function resolve(seq, seanceId, key) {
+    if (key.startsWith('r:')) {
+      const rest = key.slice(2);
+      const i = rest.indexOf(':');
+      return resolve(seq, rest.slice(0, i), rest.slice(i + 1));
+    }
+    const s = seanceById(seq, seanceId);
+    const p = s && (s.phases || []).find(x => x.id === key);
+    return p ? { phase: p, origine: seanceId } : null;
+  }
+
+  // Éléments reçus d'autres séances (reports vers cette séance).
+  function reportsVers(seq, journal, seanceId) {
+    const out = [];
+    for (const s of seq.seances || []) {
+      if (s.id === seanceId) continue;
+      const j = journal[s.id];
+      if (!j || !j.phases) continue;
+      for (const [key, e] of Object.entries(j.phases)) {
+        if (e && e.suite === 'reporter' && e.vers === seanceId && (e.statut === 'non' || e.statut === 'partiel')) {
+          const r = resolve(seq, s.id, key);
+          if (r) out.push({ key: `r:${s.id}:${key}`, depuis: s.id, origine: r.origine, phase: r.phase, reliquat: e.statut === 'partiel' });
+        }
+      }
+    }
+    return out;
+  }
+
+  // Liste ordonnée des éléments d'une séance : reports reçus, phases prévues, improvisations.
+  function items(seq, journal, seanceId) {
+    const s = seanceById(seq, seanceId);
+    if (!s) return [];
+    const j = journal[seanceId] || {};
+    const list = [];
+    for (const r of reportsVers(seq, journal, seanceId)) list.push({ type: 'report', ...r, etat: (j.phases || {})[r.key] || {} });
+    for (const p of s.phases || []) list.push({ type: 'prevu', key: p.id, phase: p, etat: (j.phases || {})[p.id] || {} });
+    // Improvisations : placées après l'élément « apres » ('__debut' = en tête, absent = à la fin).
+    let reste = (j.impro || []).map(im => ({ type: 'impro', key: 'i:' + im.id, impro: im, etat: { statut: 'fait' } }));
+    let progres = true;
+    while (reste.length && progres) {
+      progres = false;
+      for (const it of [...reste]) {
+        const a = it.impro.apres;
+        if (!a) continue;
+        let idx = a === '__debut' ? -1 : list.findIndex(x => x.key === a);
+        if (a !== '__debut' && idx < 0) continue;
+        // après l'ancre et après les improvisations déjà posées sur la même ancre
+        let k = idx + 1;
+        while (k < list.length && list[k].type === 'impro' && list[k].impro.apres === a) k++;
+        list.splice(k, 0, it);
+        reste = reste.filter(x => x !== it);
+        progres = true;
+      }
+    }
+    for (const it of reste) list.push(it);  // sans position ou ancre disparue : à la fin
+    return list;
+  }
+
+  function libelle(it) {
+    if (it.type === 'impro') return it.impro.texte || '';
+    const p = it.phase;
+    // Phase sans libellé Pronote (installation, devoirs, fin…) : absente du texte Pronote, prévu comme réel.
+    return ((('pronote' in p) ? p.pronote : p.nom) || '').trim();
+  }
+
+  function minutes(seq, journal, seanceId) {
+    const its = items(seq, journal, seanceId);
+    let prevu = 0, reports = 0, impro = 0;
+    for (const it of its) {
+      if ((it.etat || {}).statut === 'non') continue;  // non fait : ne compte pas dans le temps de la séance
+      if (it.type === 'prevu') prevu += +it.phase.duree || 0;
+      else if (it.type === 'report') reports += +it.phase.duree || 0;
+      else impro += +it.impro.duree || 0;
+    }
+    return { prevu, reports, impro, total: prevu + reports + impro };
+  }
+
+  // Bilan : combien d'éléments sans statut, ou non faits sans décision.
+  function bilan(seq, journal, seanceId) {
+    const its = items(seq, journal, seanceId).filter(i => i.type !== 'impro');
+    let vides = 0, aDecider = 0, faits = 0;
+    for (const it of its) {
+      const e = it.etat || {};
+      if (!e.statut) vides++;
+      else if (e.statut === 'fait') faits++;
+      else if (!e.suite) aDecider++;
+      if (e.statut === 'partiel') faits++;
+    }
+    return { total: its.length, vides, aDecider, faits };
+  }
+
+  // Texte Pronote construit à partir de ce qui a été réellement fait.
+  function pronote(seq, journal, seanceId) {
+    const s = seanceById(seq, seanceId);
+    if (!s) return null;
+    const its = items(seq, journal, seanceId);
+    const contenu = [];  // {texte, commence}
+    for (const it of its) {
+      const e = it.etat || {};
+      if (it.type === 'impro' && it.impro.pronote === false) continue;
+      if (e.statut !== 'fait' && e.statut !== 'partiel') continue;
+      const lab = libelle(it);
+      if (!lab) continue;
+      const commence = e.statut === 'partiel';
+      const duree = +(it.type === 'impro' ? it.impro.duree : it.phase.duree) || 0;
+      const ex = contenu.find(c => c.texte === lab);
+      if (ex) { if (!commence) ex.commence = false; ex.duree += duree; }
+      else contenu.push({ texte: lab, commence, duree });
+    }
+    // Un libellé partagé par plusieurs phases n'est « commencé » que si aucune n'est faite en entier.
+    const travail = [];
+    if ((s.travail || '').trim()) travail.push(s.travail.trim());
+    for (const it of its) {
+      const e = it.etat || {};
+      if ((e.statut === 'non' || e.statut === 'partiel') && e.suite === 'devoir') {
+        const lab = libelle(it);
+        if (lab && !travail.some(t => t.includes(lab))) travail.push(`${e.statut === 'partiel' ? 'Termine' : 'Fais'} : ${lab}.`);
+      }
+    }
+    // Minutage : durée prévue de la phase en fin de ligne, « (10 min) » ou « (10 min, commencé) ».
+    const lignes = contenu.map(c => {
+      const notes = [c.duree ? c.duree + ' min' : '', c.commence ? 'commencé' : ''].filter(Boolean);
+      return '- ' + c.texte + (notes.length ? ` (${notes.join(', ')})` : '');
+    });
+    return {
+      titre: s.pronoteTitre || s.titre,
+      contenu: lignes.join('\n'),
+      travail: travail.join('\n'),
+      pj: s.pj || [],
+      complet: contenu.length > 0,
+    };
+  }
+
+  // Recalcule les horaires de début à partir des durées.
+  function recalculer(seance) {
+    let t = 0;
+    for (const p of seance.phases) { p.debut = t; t += +p.duree || 0; }
+    return t;
+  }
+
+  function nouvelId(prefix, existants) {
+    let k = 1;
+    while (existants.includes(prefix + k)) k++;
+    return prefix + k;
+  }
+
+  // Nouvelle ancre pour monter (-1) ou descendre (+1) une improvisation d'un cran.
+  function ancreDeplacee(seq, journal, seanceId, imId, sens) {
+    const L = items(seq, journal, seanceId);
+    const i = L.findIndex(x => x.key === 'i:' + imId);
+    if (i < 0) return null;
+    if (sens < 0) { if (i === 0) return null; return i - 2 >= 0 ? L[i - 2].key : '__debut'; }
+    if (i >= L.length - 1) return null;
+    return L[i + 1].key;
+  }
+
+  return { ancreDeplacee, STATUTS, SUITES, seanceById, seanceIndex, resolve, reportsVers, items, libelle, minutes, bilan, pronote, recalculer, nouvelId };
+})();
+
+
+</script>
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const app = $('#app');
+  const toastEl = $('#toast');
+  let toastT;
+  function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('visible'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('visible'), 2200); }
+
+  const S = { db: null, seqs: {}, seqId: null, journal: {}, seanceId: null, vue: 'suivi', brouillon: null, unsubJ: null, ouverts: new Set(), lecture: false };
+  try { S.seqId = localStorage.getItem('journal.seq') || null; } catch (e) {}
+
+  // ---------- écritures : une à la fois par document ----------
+  const files = {};
+  function ecrire(path, data) {
+    const prev = files[path] || Promise.resolve();
+    // Sans réseau, l'écriture reste sur l'appareil et repart toute seule (bandeau en haut) : pas d'erreur ici.
+    const p = prev.then(() => S.db.doc(path).set(data)).catch(e => {
+      if (e && (e.code === 'jeton' || e.code === 'acces')) afficherEtat(`${e.message}. Tes modifications sont gardées sur cet appareil : entre un nouveau jeton (onglet Sauvegarde).`, true);
+      else toast(`Enregistrement retardé (${(e && e.message) || 'erreur'}) : nouvel essai automatique.`);
+    });
+    files[path] = p;
+    return p;
+  }
+  const clone = o => JSON.parse(JSON.stringify(o || {}));
+
+  function seq() { return S.seqs[S.seqId] || null; }
+  function jSeance(id) { return S.journal[id] || { phases: {}, impro: [] }; }
+  function majJournal(id, fn) {
+    const j = clone(jSeance(id));
+    j.phases = j.phases || {}; j.impro = j.impro || [];
+    fn(j);
+    j.maj = new Date().toISOString();
+    S.journal[id] = j;
+    render.force = true;
+    render();
+    ecrire(`seq/${S.seqId}/journal/${id}`, j);
+  }
+
+  function afficherEtat(msg, alerte) {
+    let b = $('#etat');
+    if (!b) { b = document.createElement('div'); b.id = 'etat'; app.prepend(b); }
+    b.className = 'bandeau' + (alerte ? ' alerte' : '');
+    b.textContent = msg;
+    b.hidden = !msg;
+  }
+
+  // ---------- base : dépôt GitHub privé ----------
+  // Dépôt des données : réglable sur l'écran du jeton (dépôt d'essai pendant les tests).
+  const DEPOT_DEFAUT = 'jkarmati/journal-3e-donnees';
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  const lireLS = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const ecrireLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* bloqué */ } };
+  const params = new URLSearchParams(location.search);
+  // Simulateur de l'API GitHub : seulement quand la page elle-même est servie par ce PC (essais).
+  const API = local && params.get('api') ? params.get('api') : 'https://api.github.com';
+  if (params.get('depot') && /^[\w.-]+\/[\w.-]+$/.test(params.get('depot'))) ecrireLS('journal.depot', params.get('depot'));
+  const depotChoisi = () => lireLS('journal.depot') || DEPOT_DEFAUT;
+
+  function ecranJeton(message) {
+    app.innerHTML = '';
+    const c = document.createElement('section');
+    c.className = 'carte connexion';
+    c.innerHTML = `
+      <h2>Relier cet appareil à ton journal</h2>
+      ${message ? `<p class="erreur" role="alert">${esc(message)}</p>` : ''}
+      <p>Ton journal est rangé dans un dépôt GitHub privé. Cet appareil a besoin d’un jeton pour le lire et l’écrire ; il est demandé une seule fois et reste sur cet appareil.</p>
+      <ol>
+        <li>Sur GitHub : photo de profil → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.</li>
+        <li>Repository access : <i>Only select repositories</i> → le dépôt ci-dessous.</li>
+        <li>Permissions : <i>Contents</i> → <i>Read and write</i>. Puis copie le jeton (il commence par github_pat_).</li>
+      </ol>
+      <div class="champ"><label for="jDepot">Dépôt du journal</label><input id="jDepot" value="${esc(depotChoisi())}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="champ"><label for="jJeton">Jeton GitHub</label><input id="jJeton" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+      <div class="outils"><button class="btn principal" id="jOk">Relier cet appareil</button></div>
+      <small style="color:var(--gris)">Un jeton par appareil (téléphone, PC) : tu pourras en révoquer un sur GitHub sans toucher aux autres.</small>`;
+    app.append(c);
+    const ok = $('#jOk', c);
+    const valider = async () => {
+      const depot = $('#jDepot', c).value.trim(), jeton = $('#jJeton', c).value.trim();
+      if (!/^[\w.-]+\/[\w.-]+$/.test(depot)) return ecranJeton('Le dépôt s’écrit « propriétaire/nom », par exemple jkarmati/journal-3e-donnees.');
+      if (!jeton) return;
+      ok.disabled = true; ok.textContent = 'Vérification…';
+      try {
+        await DepotGitHub.verifier({ depot, jeton, api: API });
+        ecrireLS('journal.depot', depot); ecrireLS('journal.jeton', jeton);
+        location.reload();
+      } catch (e) { ecranJeton(e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.'); }
+    };
+    ok.addEventListener('click', valider);
+    $('#jJeton', c).addEventListener('keydown', e => { if (e.key === 'Enter') valider(); });
+  }
+  function oublierJeton() {
+    const n = S.depot ? S.depot.enAttente() : 0;
+    if (n && !confirm(`${n} modification(s) ne sont pas encore enregistrées sur GitHub et seront perdues sur cet appareil. Oublier quand même ?`)) return;
+    const d = depotChoisi();
+    ecrireLS('journal.jeton', null); ecrireLS('journal.cache.' + d, null); ecrireLS('journal.attente.' + d, null);
+    location.reload();
+  }
+  function majReseau(st) {
+    S.reseau = st;
+    let b = $('#reseau');
+    const maj1 = t => t.charAt(0).toUpperCase() + t.slice(1);
+    const msg = st.erreur && (st.erreur.code === 'jeton' || st.erreur.code === 'acces')
+      ? `${maj1(st.erreur.message)}. Entre un nouveau jeton dans l’onglet Sauvegarde${st.attente ? ` (${st.attente} modification(s) gardée(s) sur cet appareil)` : ''}.`
+      : st.attente && st.horsLigne ? `Pas de réseau : ${st.attente} modification(s) gardée(s) sur cet appareil, envoyée(s) dès que le réseau revient.`
+      : st.horsLigne ? 'Pas de réseau : tu vois la dernière version chargée sur cet appareil.'
+      : st.erreur ? `GitHub ne répond pas comme prévu (${st.erreur.message}) : nouvel essai dans 30 s.` : '';
+    if (!msg) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement('div'); b.id = 'reseau'; b.setAttribute('role', 'status'); }
+    b.className = 'bandeau alerte'; b.textContent = msg;
+    if (b.parentNode !== app) app.prepend(b);
+  }
+
+  // ---------- démarrage ----------
+  let timer = null;
+  (async () => {
+    const jeton = lireLS('journal.jeton');
+    if (!jeton) { afficherEtat(''); ecranJeton(); return; }
+    timer = setTimeout(() => afficherEtat('Les données ne répondent pas encore. Vérifie ta connexion ; la page se mettra à jour toute seule.', true), 10000);
+    S.depot = DepotGitHub.ouvrir({ depot: depotChoisi(), jeton, api: API, surEtat: majReseau });
+    const db = S.depot.db;
+    S.db = db;
+    db.doc('etat/synchro').onSnapshot(d => { S.synchro = d.exists ? d.data() : null; render(); }, () => {});
+    S.depot.demarrer();
+    db.collection('seq').onSnapshot(snap => {
+      if (!snap.metadata.fromCache) clearTimeout(timer);
+      S.seqs = {};
+      snap.docs.forEach(d => { S.seqs[d.id] = d.data(); });
+      const ids = Object.keys(S.seqs);
+      if (!ids.length) { if (!snap.metadata.fromCache) afficherEtat('Aucune séquence pour l’instant. Demande à Claude d’ajouter le déroulé d’un chapitre.'); return; }
+      if (!S.seqId || !S.seqs[S.seqId]) S.seqId = ids.sort((a, b) => (S.seqs[a].ordre || 0) - (S.seqs[b].ordre || 0))[ids.length - 1];
+      remplirChoix();
+      abonnerJournal();
+    }, e => { clearTimeout(timer); if (!Object.keys(S.seqs).length) afficherEtat('Impossible de lire tes séquences : ' + e.message + '.', true); });
+  })();
+
+  function remplirChoix() {
+    const sel = $('#choixSeq');
+    const ids = Object.keys(S.seqs).sort((a, b) => (S.seqs[a].ordre || 0) - (S.seqs[b].ordre || 0));
+    sel.innerHTML = ids.map(id => `<option value="${esc(id)}"${id === S.seqId ? ' selected' : ''}>Ch. ${esc(S.seqs[id].chapitre)} – ${esc(S.seqs[id].titre)}</option>`).join('');
+  }
+  $('#choixSeq').addEventListener('change', e => {
+    S.seqId = e.target.value; S.seanceId = null; S.brouillon = null;
+    try { localStorage.setItem('journal.seq', S.seqId); } catch (er) {}
+    abonnerJournal();
+  });
+
+  let journalDe = null;
+  function abonnerJournal() {
+    if (journalDe === S.seqId) { render(); return; }
+    if (S.unsubJ) S.unsubJ();
+    journalDe = S.seqId; S.journal = {};
+    const pour = S.seqId;
+    S.unsubJ = S.db.collection(`seq/${S.seqId}/journal`).onSnapshot(snap => {
+      if (pour !== S.seqId) return;
+      S.journal = {};
+      snap.docs.forEach(d => { S.journal[d.id] = d.data(); });
+      afficherEtat('');
+      render();
+    }, () => {});  // erreurs de lecture : bandeau réseau (majReseau)
+    render();
+  }
+
+  // ---------- vues ----------
+  for (const [id, v] of [['vueSuivi', 'suivi'], ['vueDeroule', 'deroule'], ['vueSauve', 'sauve']]) {
+    $('#' + id).addEventListener('click', () => {
+      S.vue = v;
+      for (const b of document.querySelectorAll('.vues button')) b.setAttribute('aria-pressed', String(b.id === id));
+      if (v === 'deroule' && seq()) S.brouillon = clone(seq());
+      render();
+    });
+  }
+
+  function seanceParDefaut(q) {
+    const auj = new Date().toISOString().slice(0, 10);
+    const dated = q.seances.find(s => (S.journal[s.id] || {}).date === auj);
+    if (dated) return dated.id;
+    const enCours = q.seances.find(s => { const b = Core.bilan(q, S.journal, s.id); return b.vides > 0 || b.aDecider > 0; });
+    return (enCours || q.seances[0]).id;
+  }
+
+  let rerenduEnAttente = false;
+  function render() {
+    const f = document.activeElement;
+    if (f && app.contains(f) && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName) && S.vue === 'suivi' && !render.force) {
+      if (!rerenduEnAttente) { rerenduEnAttente = true; f.addEventListener('blur', () => { rerenduEnAttente = false; setTimeout(render, 0); }, { once: true }); }
+      return;
+    }
+    render.force = false;
+    const q = seq();
+    const etat = $('#etat');
+    app.innerHTML = '';
+    if (etat && !etat.hidden && etat.textContent) app.append(etat);
+    if (S.reseau) majReseau(S.reseau);
+    if (!q) return;
+    if (!S.seanceId || !Core.seanceById(q, S.seanceId)) S.seanceId = seanceParDefaut(q);
+    if (S.vue === 'suivi') renderSuivi(q);
+    else if (S.vue === 'deroule') renderDeroule();
+    else renderSauve(q);
+  }
+
+  // ---------- SUIVI ----------
+  function renderSuivi(q) {
+    // Alertes de l'import automatique du déroulé .odt (tâche horaire).
+    const al = q.importAlertes || [];
+    if (al.length) {
+      const bd = document.createElement('div');
+      bd.className = 'bandeau alerte';
+      bd.textContent = al.includes('conflit')
+        ? 'Le déroulé .odt a changé alors que tu as aussi modifié le déroulé ici : rien n’a été importé. Demande à Claude de fusionner les deux.'
+        : `Le déroulé .odt a changé pour ${al.join(', ')}, déjà commencée${al.length > 1 ? 's' : ''} : ces changements ne sont pas repris ici pour ne pas mélanger tes coches. Demande à Claude si besoin.`;
+      app.append(bd);
+    }
+    const strip = document.createElement('nav');
+    strip.className = 'seances'; strip.setAttribute('aria-label', 'Séances');
+    for (const s of q.seances) {
+      const b = Core.bilan(q, S.journal, s.id);
+      const j = S.journal[s.id] || {};
+      const cls = b.vides === 0 && b.aDecider === 0 ? 'ok' : (b.vides < b.total || b.aDecider ? 'attention' : '');
+      const bt = document.createElement('button');
+      bt.className = 'chip ' + cls;
+      bt.setAttribute('aria-current', String(s.id === S.seanceId));
+      bt.innerHTML = `<b>${esc(s.id)}</b><small>${j.date ? esc(dateCourte(j.date)) : esc(s.jour || '')}</small>`;
+      bt.addEventListener('click', () => { S.seanceId = s.id; render(); window.scrollTo({ top: 0 }); });
+      strip.append(bt);
+    }
+    app.append(strip);
+
+    const s = Core.seanceById(q, S.seanceId);
+    const j = jSeance(s.id);
+    const m = Core.minutes(q, S.journal, s.id);
+    const b = Core.bilan(q, S.journal, s.id);
+    const head = document.createElement('section');
+    head.className = 'carte entete-seance';
+    head.innerHTML = `
+      <h2>${esc(s.id)} · ${esc(s.titre)}</h2>
+      <div class="meta">
+        <label for="date-${esc(s.id)}">Date <input type="date" id="date-${esc(s.id)}" value="${esc(j.date || '')}" min="2020-01-01" max="2099-12-31"></label>
+        <button class="lien-note" id="auj">Aujourd’hui</button>
+        <span class="temps${m.total > (q.dureeSeance || 45) ? ' depasse' : ''}">${m.prevu} min ${Object.keys(j.phases || {}).length ? 'faites ou prévues' : 'prévues'}${m.reports ? ` + ${m.reports} min reportées` : ''}${m.impro ? ` + ${m.impro} min improvisées` : ''}${m.total > (q.dureeSeance || 45) ? ` : ${m.total} min pour ${q.dureeSeance || 45}` : ''}</span>
+        <span>${esc(s.competence || '')}</span>
+      </div>
+      ${s.essentiel ? `<div class="essentiel">${esc(s.essentiel.replace(/\*\*/g, ''))}</div>` : ''}
+      <div class="outils">
+        ${b.vides ? `<button class="btn" id="toutFait">Marquer le reste comme fait</button>` : ''}
+        <button class="btn discret" id="ajoutImpro">J’ai fait autre chose</button>
+      </div>`;
+    app.append(head);
+    const champDate = $('#date-' + CSS.escape(s.id), head);
+    const valideDate = v => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && +v.slice(0, 4) >= 2020 && +v.slice(0, 4) <= 2099);
+    const sauverDate = () => {
+      const v = champDate.value;
+      if (v === (j.date || '') || !valideDate(v)) return;
+      majJournal(s.id, jj => { if (v) jj.date = v; else delete jj.date; });
+    };
+    champDate.addEventListener('blur', sauverDate);
+    champDate.addEventListener('keydown', e => { if (e.key === 'Enter') sauverDate(); });
+    $('#auj', head).addEventListener('click', () => { champDate.value = new Date().toISOString().slice(0, 10); sauverDate(); });
+    const tf = $('#toutFait', head);
+    if (tf) tf.addEventListener('click', () => majJournal(s.id, jj => {
+      for (const it of Core.items(q, S.journal, s.id)) if (it.type !== 'impro' && !(jj.phases[it.key] || {}).statut) jj.phases[it.key] = { ...(jj.phases[it.key] || {}), statut: 'fait' };
+    }));
+    $('#ajoutImpro', head).addEventListener('click', () => { S.ouverts.add('impro-form'); render(); });
+
+    const liste = document.createElement('section');
+    liste.className = 'liste'; liste.setAttribute('aria-label', 'Phases');
+    for (const it of Core.items(q, S.journal, s.id)) liste.append(carteItem(q, s, it));
+    if (S.ouverts.has('impro-form')) liste.prepend(formImpro(q, s));
+    app.append(liste);
+    app.append(cartePronote(q, s));
+  }
+
+  function carteItem(q, s, it) {
+    const e = it.etat || {};
+    const el = document.createElement('article');
+    if (it.type === 'impro') {
+      el.className = 'phase fait';
+      el.innerHTML = `<div class="ligne1"><span class="horaire">${esc(it.impro.duree || 0)} min</span><span class="nom">${esc(it.impro.texte)}</span><span class="tag">Improvisé</span>${it.impro.pronote === false ? '<span class="tag">Hors Pronote</span>' : ''}</div>
+        ${it.impro.support ? `<div style="color:var(--gris);font-size:.9rem">Support : ${esc(it.impro.support)}</div>` : ''}
+        <div class="outils"><button class="btn" data-a="haut" aria-label="Monter">↑</button><button class="btn" data-a="bas" aria-label="Descendre">↓</button><button class="btn discret" data-a="suppr">Retirer</button></div>`;
+      $('[data-a=suppr]', el).addEventListener('click', () => majJournal(s.id, jj => {
+        const cle = 'i:' + it.impro.id;
+        const ancien = it.impro.apres;
+        jj.impro = jj.impro.filter(x => x.id !== it.impro.id).map(x => x.apres === cle ? { ...x, apres: ancien } : x);
+      }));
+      for (const [a, sens] of [['haut', -1], ['bas', 1]]) $('[data-a=' + a + ']', el).addEventListener('click', () => {
+        const nv = Core.ancreDeplacee(q, S.journal, s.id, it.impro.id, sens);
+        if (nv === null) return;
+        majJournal(s.id, jj => {
+          const cle = 'i:' + it.impro.id;
+          const ancien = it.impro.apres;
+          jj.impro = jj.impro.map(x => x.id === it.impro.id ? { ...x, apres: nv } : (x.apres === cle ? { ...x, apres: ancien } : x));
+        });
+      });
+      return el;
+    }
+    const p = it.phase;
+    el.className = 'phase ' + (e.statut || '') + (e.suite === 'abandon' ? ' abandon' : '');
+    const horaire = it.type === 'report' ? `${p.duree} min` : `${p.debut}–${p.debut + (+p.duree || 0)}`;
+    const tag = it.type === 'report' ? `<span class="tag rep">Reporté de ${esc(it.depuis)}${it.reliquat ? ' (suite)' : ''}</span>` : '';
+    el.innerHTML = `
+      <div class="ligne1"><span class="horaire">${esc(horaire)}</span><span class="nom">${esc(p.nom || 'Phase')}</span>${tag}</div>
+      ${p.eleves ? `<p class="eleves">${esc(p.eleves)}</p>` : ''}
+      ${(p.prof || p.support) ? `<details class="prof"><summary>Ce que je montre, dis ou vérifie${p.support ? ' · support' : ''}</summary><div>${esc((p.prof || '').replace(/\*\*/g, ''))}${p.support ? '\n\nSupport : ' + esc(p.support) : ''}</div></details>` : ''}
+      <div class="statuts" role="group" aria-label="Statut">
+        ${Object.entries(Core.STATUTS).map(([v, l]) => `<button data-v="${v}" aria-pressed="${e.statut === v}">${l}</button>`).join('')}
+      </div>`;
+    for (const bt of el.querySelectorAll('.statuts button')) bt.addEventListener('click', () => majJournal(s.id, jj => {
+      const cur = jj.phases[it.key] || {};
+      const v = bt.dataset.v;
+      if (cur.statut === v) { delete jj.phases[it.key]; return; }
+      const n = { ...cur, statut: v };
+      if (v === 'fait') { delete n.suite; delete n.vers; delete n.motif; }
+      jj.phases[it.key] = n;
+    }));
+    if (e.statut === 'non' || e.statut === 'partiel') el.append(blocSuite(q, s, it, e));
+    el.append(blocNote(s, it, e));
+    return el;
+  }
+
+  function blocSuite(q, s, it, e) {
+    const d = document.createElement('div');
+    d.className = 'suite';
+    const idx = Core.seanceIndex(q, s.id);
+    const suivantes = q.seances.slice(idx + 1);
+    const vers = e.vers || (suivantes[0] && suivantes[0].id) || '';
+    d.innerHTML = `
+      <div>${e.statut === 'partiel' ? 'Et la suite ?' : 'Que faire de cette phase ?'} ${e.suite ? '' : '<span class="attente">À décider</span>'}</div>
+      <div class="choix">
+        ${suivantes.length ? `<button data-s="reporter" aria-pressed="${e.suite === 'reporter'}">Reporter</button>` : ''}
+        <button data-s="ti" aria-pressed="${e.suite === 'ti'}">Au TI</button>
+        <button data-s="devoir" aria-pressed="${e.suite === 'devoir'}">En devoir</button>
+        <button data-s="abandon" aria-pressed="${e.suite === 'abandon'}">Abandonner</button>
+      </div>
+      ${e.suite === 'reporter' ? `<label class="champ"><span>Reporter à</span><select data-k="vers">${suivantes.map(x => `<option value="${esc(x.id)}"${x.id === vers ? ' selected' : ''}>${esc(x.id)} · ${esc(x.titre)}</option>`).join('')}</select></label>` : ''}
+      ${e.suite === 'abandon' ? `<label class="champ"><span>Pourquoi ? (pour l’an prochain)</span><input data-k="motif" value="${esc(e.motif || '')}" placeholder="Ex. déjà acquis, pas utile ici"></label>` : ''}`;
+    for (const bt of d.querySelectorAll('[data-s]')) bt.addEventListener('click', () => majJournal(s.id, jj => {
+      const n = { ...(jj.phases[it.key] || {}) };
+      if (n.suite === bt.dataset.s) { delete n.suite; delete n.vers; }
+      else { n.suite = bt.dataset.s; if (n.suite === 'reporter') n.vers = n.vers || vers; else delete n.vers; }
+      jj.phases[it.key] = n;
+    }));
+    const selV = $('[data-k=vers]', d);
+    if (selV) selV.addEventListener('change', ev => majJournal(s.id, jj => { jj.phases[it.key] = { ...(jj.phases[it.key] || {}), vers: ev.target.value }; }));
+    const mot = $('[data-k=motif]', d);
+    if (mot) mot.addEventListener('change', ev => majJournal(s.id, jj => { jj.phases[it.key] = { ...(jj.phases[it.key] || {}), motif: ev.target.value }; }));
+    return d;
+  }
+
+  function blocNote(s, it, e) {
+    const d = document.createElement('div');
+    d.className = 'note';
+    const id = 'note-' + s.id + '-' + it.key.replace(/[^a-zA-Z0-9]/g, '_');
+    if (!e.note && !S.ouverts.has(id)) {
+      d.innerHTML = `<button class="lien-note">+ note</button>`;
+      d.firstElementChild.addEventListener('click', () => { S.ouverts.add(id); render(); setTimeout(() => { const i = document.getElementById(id); if (i) i.focus(); }, 0); });
+      return d;
+    }
+    d.innerHTML = `<label for="${id}">Ce qui s’est passé</label><input id="${id}" value="${esc(e.note || '')}" placeholder="Ex. fait au tableau, 3 élèves absents">`;
+    $('input', d).addEventListener('change', ev => majJournal(s.id, jj => {
+      const n = { ...(jj.phases[it.key] || {}) };
+      if (ev.target.value.trim()) n.note = ev.target.value.trim(); else delete n.note;
+      jj.phases[it.key] = n;
+    }));
+    return d;
+  }
+
+  function formImpro(q, s) {
+    const f = document.createElement('form');
+    f.className = 'carte impro-form';
+    const L = Core.items(q, S.journal, s.id);
+    // par défaut : après la dernière phase déjà renseignée
+    let defaut = '__debut';
+    L.forEach(x => { if (x.type === 'impro' || (x.etat || {}).statut) defaut = x.key; });
+    const opts = [['__debut', 'Au début de la séance']].concat(L.map(x => [x.key, x.type === 'impro' ? 'Improvisé : ' + x.impro.texte : (x.type === 'report' ? x.phase.duree + ' min' : x.phase.debut + '–' + (x.phase.debut + (+x.phase.duree || 0))) + ' · ' + (x.phase.nom || '')]));
+    f.innerHTML = `
+      <div class="champ plein"><label for="impA">Placer après</label><select id="impA">${opts.map(([k, l]) => `<option value="${esc(k)}"${k === defaut ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
+      <div class="champ plein"><label for="impT">Ce que j’ai fait à la place</label><input id="impT" required placeholder="Ex. reprise du tableau de proportionnalité"></div>
+      <div class="champ"><label for="impP">Libellé élève (Pronote)</label><input id="impP" placeholder="Laisser vide = même texte"></div>
+      <div class="champ"><label for="impD">Durée (min)</label><input id="impD" type="number" min="0" max="120" value="5" inputmode="numeric"></div>
+      <div class="champ plein"><label for="impS">Fichier support (facultatif)</label><input id="impS" list="impSListe" placeholder="Ex. 01 Pratique accompagnee et corriges · situation 2"><datalist id="impSListe">${[...new Set((q.seances || []).flatMap(x => (x.pj || []).map(p => p.replace(/\.[A-Za-z0-9]+\s*(\(.*\))?\s*$/, ''))))].map(n => `<option value="${esc(n)}">`).join('')}</datalist><small style="color:var(--gris)">Pour une correction, le corrigé élève de ce fichier sera joint dans Pronote. Ajoute « · situation 2 » ou « · p. 3-4 » pour viser une partie.</small></div>
+      <label class="plein" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="impN" checked> Mettre dans le texte Pronote</label>
+      <div class="outils plein"><button class="btn principal" type="submit">Ajouter</button><button class="btn" type="button" id="impX">Annuler</button></div>`;
+    f.addEventListener('submit', ev => {
+      ev.preventDefault();
+      const t = $('#impT', f).value.trim(); if (!t) return;
+      const lib = $('#impP', f).value.trim();
+      S.ouverts.delete('impro-form');
+      const apres = $('#impA', f).value;
+      majJournal(s.id, jj => { jj.impro.push({ id: Date.now().toString(36), texte: lib || t, note: lib ? t : '', duree: +$('#impD', f).value || 0, pronote: $('#impN', f).checked, apres, ...($('#impS', f).value.trim() ? { support: $('#impS', f).value.trim() } : {}) }); });
+    });
+    $('#impX', f).addEventListener('click', () => { S.ouverts.delete('impro-form'); render(); });
+    setTimeout(() => $('#impT', f).focus(), 0);
+    return f;
+  }
+
+  function commencee(j) { return !!(Object.keys(j.phases || {}).length || (j.impro || []).length); }
+  function cartePronote(q, s) {
+    const pr = Core.pronote(q, S.journal, s.id);
+    const b = Core.bilan(q, S.journal, s.id);
+    const j = jSeance(s.id);
+    // Avant la séance : on montre le texte prévu, tel qu'il est (ou sera) dans Pronote. Ensuite : le réel.
+    const prevu = !commencee(j) && j.envoi && j.envoi.texte;
+    const vu = prevu ? { ...j.envoi.texte, pj: j.envoi.texte.pj || [] } : pr;
+    const c = document.createElement('section');
+    c.className = 'carte pronote';
+    c.innerHTML = `
+      <div class="tete"><h3>Texte Pronote ${prevu ? '(prévu)' : '(réel)'}</h3>${!prevu && b.vides ? `<span class="attente">${b.vides} phase${b.vides > 1 ? 's' : ''} sans statut</span>` : ''}</div>
+      ${blocCopie('Titre', vu.titre)}
+      ${blocCopie('Contenu de la séance', vu.contenu, 'Rien de coché comme fait pour l’instant.')}
+      ${blocCopie('Travail à faire', vu.travail, 'Pas de travail à faire.')}
+      ${vu.pj.length ? `<div class="bloc"><b>Pièces jointes</b><div>${vu.pj.map(esc).join('<br>')}</div></div>` : ''}`;
+    for (const bt of c.querySelectorAll('[data-copie]')) bt.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(bt.dataset.copie); toast('Copié'); }
+      catch (e) { toast('Copie refusée : sélectionne le texte et copie-le à la main.'); }
+    });
+    c.append(blocEnvoi(s, pr));
+    return c;
+  }
+
+  // ---------- passages du PC ----------
+  // La tâche Windows du PC lit et écrit le dépôt toutes les 5 minutes quand le PC est allumé. Elle note
+  // son passage dans etat/synchro (au plus une fois par heure s'il ne se passe rien).
+  const heure = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
+  const SILENCE_PC = 75 * 60 * 1000;  // au-delà, le PC est sans doute éteint ou la tâche arrêtée
+  function prochainPassage() { return 'dans 5 minutes au plus si le PC est allumé'; }
+  function pcEteint() {
+    const sy = S.synchro;
+    return !sy || !sy.dernierPassage || Date.now() - Date.parse(sy.dernierPassage) > SILENCE_PC;
+  }
+  function lignePC() {
+    const sy = S.synchro;
+    if (!sy || !sy.dernierPassage) return { alerte: true, texte: 'Le PC n’est encore jamais passé : l’envoi vers Pronote se fera quand la tâche du PC tournera.' };
+    const d = new Date(sy.dernierPassage);
+    const quand = d.toDateString() === new Date().toDateString() ? 'à ' + heure(sy.dernierPassage)
+      : d.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    if (sy.resultat === 'erreur') return { alerte: true, texte: `Dernier passage du PC ${quand} : erreur (${sy.erreur || 'voir journal.log sur le PC'}).` };
+    if (pcEteint()) return { alerte: true, texte: `Pas de nouvelles du PC depuis ${quand} : il est sans doute éteint. L’envoi vers Pronote se fera quand il sera rallumé.` };
+    return { alerte: false, texte: `Dernier signe du PC ${quand}.` };
+  }
+  // Message d'état pour une séance en attente d'envoi.
+  function etatSynchro() {
+    if (pcEteint()) return { cls: 'err', texte: 'En attente : ' + lignePC().texte };
+    return { cls: 'att', texte: `En attente : saisie dans Pronote par le PC ${prochainPassage()}.` };
+  }
+  async function declencher(s, titre) {
+    await files[`seq/${S.seqId}/journal/${s.id}`];  // l'état « à envoyer » est enregistré
+    toast(pcEteint() ? 'Enregistré : envoi vers Pronote quand le PC sera allumé' : 'Enregistré : saisie dans Pronote dans 5 minutes au plus');
+    render.force = true; render();
+  }
+
+  // ---------- envoi automatique vers Pronote ----------
+  // jj.envoi = { statut: 'a_envoyer' | 'envoye' | 'erreur', texte: {date, titre, contenu, travail, pj}, origine: 'prevu' | 'reel',
+  //              valideLe, envoyeLe, erreur, dejaEnvoye }
+  // Fonctionnement (tâche « Synchro 3e », planification.py) : toute la séquence part dans Pronote à l'avance (texte prévu) ;
+  // quand la séance est cochée en entier (suites décidées), le texte réel remplace le prévu. La modification la plus
+  // récente l'emporte : une correction faite à la main dans Pronote n'est pas écrasée par une coche plus ancienne.
+  function blocEnvoi(s, pr) {
+    const q = seq();
+    const j = jSeance(s.id);
+    const env = j.envoi || null;
+    const b = Core.bilan(q, S.journal, s.id);
+    const complete = commencee(j) && b.vides === 0 && b.aDecider === 0;
+    const reel = { date: j.date || (env && env.texte && env.texte.date) || '', titre: pr.titre || '', contenu: pr.contenu || '', travail: pr.travail || '', pj: pr.pj || [] };
+    const memeTexte = (a, c) => !!a && !!c && ['titre', 'contenu', 'travail'].every(k => (a[k] || '').trim() === (c[k] || '').trim());
+    const quand = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+    const nature = env && env.origine === 'reel' ? 'texte réel' : (env && env.origine === 'prevu' ? 'texte prévu' : 'texte');
+    const d = document.createElement('div');
+    d.className = 'envoi';
+    let etat = '', boutons = '', aide = '';
+    if (!env) {
+      if (!reel.date) etat = `<div class="etat">Date inconnue : indique-la ci-dessus (ou le jour dans le déroulé) pour l’envoi automatique.</div>`;
+      else if (commencee(j) && (reel.contenu || reel.travail)) boutons = `<button class="btn principal" data-envoi="reel">Envoyer le réel vers Pronote</button>`;
+      else etat = `<div class="etat att">Le texte prévu partira dans Pronote au prochain passage (${prochainPassage()}).</div>`;
+    } else if (env.statut === 'a_envoyer') {
+      const es = etatSynchro();
+      etat = `<div class="etat ${es.cls}">${esc(nature.charAt(0).toUpperCase() + nature.slice(1))} : ${esc(es.texte)}</div>`;
+    } else if (env.statut === 'envoye') {
+      etat = `<div class="etat ok">${esc(nature.charAt(0).toUpperCase() + nature.slice(1))} saisi dans Pronote ${esc(quand(env.envoyeLe))}${env.modifieDansPronoteLe ? ', puis modifié à la main dans Pronote' : ''}.</div>`;
+      if (!commencee(j)) aide = 'Après la séance, coche les phases : quand tout est coché et les suites décidées, le texte réel remplace automatiquement le prévu dans Pronote.';
+      else if (!complete) aide = `Encore ${b.vides ? b.vides + ' phase' + (b.vides > 1 ? 's' : '') + ' sans statut' : ''}${b.vides && b.aDecider ? ' et ' : ''}${b.aDecider ? b.aDecider + ' suite' + (b.aDecider > 1 ? 's' : '') + ' à décider' : ''} : le texte réel partira dans Pronote dès que tout sera renseigné.`;
+      else if (!memeTexte(reel, env.texte)) {
+        aide = `Le texte réel remplacera celui de Pronote au prochain passage (${prochainPassage()}), sauf si Pronote a été modifié à la main depuis ta dernière coche.`;
+        boutons = `<button class="btn principal" data-envoi="reel">Envoyer le réel maintenant</button>`;
+      }
+    } else if (env.statut === 'erreur') {
+      etat = `<div class="etat err">Échec de la saisie ${esc(quand(env.essaiLe))} : ${esc(env.erreur || 'erreur inconnue')}</div>`;
+      boutons = `<button class="btn principal" data-envoi="reessayer">Réessayer</button>`;
+      aide = 'Si tu remplis ce cours à la main dans Pronote, le Journal reprendra ton texte au passage suivant.';
+    }
+    const note = `<small>${aide ? esc(aide) + ' ' : ''}Pièces jointes en version élève, sans corrigé ; celles marquées « Après la séance » sont ajoutées le lendemain. Le corrigé d’un exercice est joint à la séance où il est corrigé.</small>`;
+    const pc = lignePC();
+    d.innerHTML = `${etat}${boutons ? `<div class="outils">${boutons}</div>` : ''}${note}<div class="pc${pc.alerte ? ' alerte' : ''}">${esc(pc.texte)}</div>`;
+    const envoyer = (texte, origine) => {
+      // dejaEnvoye garde la version présente dans Pronote : la tâche remplace alors le texte au lieu d'en ajouter un second.
+      const deja = env && env.statut === 'envoye' ? { le: env.envoyeLe, texte: env.texte } : (env && env.dejaEnvoye) || null;
+      majJournal(s.id, jj => { jj.envoi = { statut: 'a_envoyer', texte, origine, valideLe: new Date().toISOString(), ...(deja ? { dejaEnvoye: deja } : {}) }; });
+      declencher(s, texte.titre);
+    };
+    const bR = d.querySelector('[data-envoi=reel]');
+    if (bR) bR.addEventListener('click', () => envoyer(reel, 'reel'));
+    const bE = d.querySelector('[data-envoi=reessayer]');
+    if (bE) bE.addEventListener('click', () => envoyer(complete ? reel : env.texte, complete ? 'reel' : (env.origine || 'prevu')));
+    return d;
+  }
+  function blocCopie(titre, texte, vide) {
+    return `<div class="bloc"><div class="tete"><b>${esc(titre)}</b>${texte ? `<button class="btn" data-copie="${esc(texte)}">Copier</button>` : ''}</div>${texte ? `<pre>${esc(texte)}</pre>` : `<div class="vide">${esc(vide || '')}</div>`}</div>`;
+  }
+
+  function dateCourte(iso) {
+    const d = new Date(iso + 'T12:00:00');
+    return isNaN(d) ? iso : d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  // ---------- DÉROULÉ (modification en ligne) ----------
+  function renderDeroule() {
+    const q = S.brouillon || (S.brouillon = clone(seq()));
+    const strip = document.createElement('nav');
+    strip.className = 'seances'; strip.setAttribute('aria-label', 'Séances');
+    for (const s of q.seances) {
+      const bt = document.createElement('button');
+      bt.className = 'chip'; bt.setAttribute('aria-current', String(s.id === S.seanceId));
+      bt.innerHTML = `<b>${esc(s.id)}</b><small>${Core.recalculer(s)} min</small>`;
+      bt.addEventListener('click', () => { S.seanceId = s.id; render(); });
+      strip.append(bt);
+    }
+    app.append(strip);
+    const s = Core.seanceById(q, S.seanceId) || q.seances[0];
+    const total = Core.recalculer(s);
+    const info = document.createElement('div');
+    info.className = 'bandeau';
+    info.textContent = 'Tes modifications changent le déroulé prévu : la synchro les recopie dans le fichier .odt et met à jour Pronote pour les séances à venir (la modification la plus récente l’emporte).';
+    app.append(info);
+
+    const head = document.createElement('section');
+    head.className = 'carte';
+    head.style.display = 'grid'; head.style.gap = '10px';
+    head.innerHTML = `
+      <div class="champ"><label for="eTitre">Titre de la séance</label><input id="eTitre" value="${esc(s.titre)}"></div>
+      <div class="champ"><label for="eJour">Jour prévu</label><input id="eJour" value="${esc(s.jour || '')}"></div>
+      <div class="champ"><label for="eEss">L’essentiel</label><textarea id="eEss">${esc(s.essentiel || '')}</textarea></div>
+      <div class="champ"><label for="ePT">Titre Pronote</label><input id="ePT" value="${esc(s.pronoteTitre || '')}"></div>
+      <div class="champ"><label for="eTr">Travail à faire prévu</label><textarea id="eTr">${esc(s.travail || '')}</textarea></div>
+      <div class="champ"><label for="ePJ">Pièces jointes (une par ligne)</label><textarea id="ePJ">${esc((s.pj || []).join('\n'))}</textarea></div>
+      <div class="temps${total > (q.dureeSeance || 45) ? ' depasse' : ''}">Total : ${total} min pour ${q.dureeSeance || 45}</div>`;
+    const lie = (sel, fn) => $(sel, head).addEventListener('input', ev => { fn(ev.target.value); });
+    lie('#eTitre', v => s.titre = v); lie('#eJour', v => s.jour = v); lie('#eEss', v => s.essentiel = v);
+    lie('#ePT', v => s.pronoteTitre = v); lie('#eTr', v => s.travail = v);
+    lie('#ePJ', v => s.pj = v.split('\n').map(x => x.trim()).filter(Boolean));
+    app.append(head);
+
+    const liste = document.createElement('section');
+    liste.className = 'liste';
+    s.phases.forEach((p, i) => {
+      const el = document.createElement('div');
+      el.className = 'edit-phase';
+      const k = 'ph' + i;
+      el.innerHTML = `
+        <div class="champ"><label for="${k}d">Durée</label><input id="${k}d" type="number" min="0" max="120" inputmode="numeric" value="${esc(p.duree)}"></div>
+        <div class="champ"><label for="${k}n">Phase (${p.debut}–${p.debut + (+p.duree || 0)})</label><input id="${k}n" value="${esc(p.nom)}"></div>
+        <div class="champ plein"><label for="${k}e">Ce que font les élèves</label><textarea id="${k}e">${esc(p.eleves)}</textarea></div>
+        <div class="champ plein"><label for="${k}p">Ce que je montre, dis ou vérifie</label><textarea id="${k}p">${esc(p.prof)}</textarea></div>
+        <div class="champ plein"><label for="${k}s">Support</label><input id="${k}s" value="${esc(p.support)}"></div>
+        <div class="champ plein"><label for="${k}l">Libellé Pronote</label><input id="${k}l" value="${esc(p.pronote)}" placeholder="Vide = absent de Pronote"></div>
+        <div class="actions">
+          <button class="btn" data-a="haut" ${i === 0 ? 'disabled' : ''} aria-label="Monter">↑</button>
+          <button class="btn" data-a="bas" ${i === s.phases.length - 1 ? 'disabled' : ''} aria-label="Descendre">↓</button>
+          <button class="btn" data-a="suppr">Supprimer</button>
+        </div>`;
+      const champ = (suf, key, num) => $('#' + k + suf, el).addEventListener('input', ev => { p[key] = num ? (+ev.target.value || 0) : ev.target.value; });
+      champ('d', 'duree', true); champ('n', 'nom'); champ('e', 'eleves'); champ('p', 'prof'); champ('s', 'support'); champ('l', 'pronote');
+      $('#' + k + 'd', el).addEventListener('change', () => render());
+      $('[data-a=haut]', el).addEventListener('click', () => { [s.phases[i - 1], s.phases[i]] = [s.phases[i], s.phases[i - 1]]; render(); });
+      $('[data-a=bas]', el).addEventListener('click', () => { [s.phases[i + 1], s.phases[i]] = [s.phases[i], s.phases[i + 1]]; render(); });
+      $('[data-a=suppr]', el).addEventListener('click', () => { s.phases.splice(i, 1); render(); });
+      liste.append(el);
+    });
+    const add = document.createElement('button');
+    add.className = 'btn discret'; add.textContent = 'Ajouter une phase';
+    add.addEventListener('click', () => {
+      s.phases.push({ id: Core.nouvelId('p', s.phases.map(x => x.id)), duree: 5, nom: 'Nouvelle phase', eleves: '', prof: '', support: '', pronote: '' });
+      render();
+    });
+    liste.append(add);
+    app.append(liste);
+
+    const barre = document.createElement('div');
+    barre.className = 'barre-edition';
+    barre.innerHTML = `<button class="btn" id="eAnnuler">Annuler mes changements</button><button class="btn principal" id="eSauver">Enregistrer le déroulé</button>`;
+    $('#eAnnuler', barre).addEventListener('click', () => { S.brouillon = clone(seq()); render(); toast('Changements annulés'); });
+    $('#eSauver', barre).addEventListener('click', async () => {
+      const b = clone(S.brouillon);
+      b.seances.forEach(Core.recalculer);
+      b.modifieEnLigne = true; b.majEnLigneLe = new Date().toISOString();
+      await ecrire(`seq/${S.seqId}`, b);
+      toast('Déroulé enregistré');
+    });
+    app.append(barre);
+    for (const t of app.querySelectorAll('textarea')) {
+      const ajuste = () => { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; };
+      ajuste(); t.addEventListener('input', ajuste);
+    }
+  }
+
+  // ---------- SAUVEGARDE ----------
+  function renderSauve(q) {
+    const c = document.createElement('section');
+    c.className = 'carte';
+    const data = { exporteLe: new Date().toISOString(), sequence: q, journal: S.journal };
+    const json = JSON.stringify(data, null, 1);
+    c.innerHTML = `
+      <h2 style="margin-top:0">Sauvegarde</h2>
+      <p>Chaque modification est enregistrée dans ton dépôt GitHub privé <b>${esc(depotChoisi())}</b>, qui garde l’historique complet (onglet « Commits » du dépôt) : rien n’est perdu, même une coche effacée. Tu peux aussi copier ici la séquence et ton journal (format JSON).</p>
+      <div class="outils"><button class="btn principal" id="cp">Copier la sauvegarde</button></div>
+      <div class="champ" style="margin-top:10px"><label for="js">Contenu</label><textarea id="js" readonly style="min-height:240px;font-family:ui-monospace,monospace;font-size:.8rem">${esc(json)}</textarea></div>
+      <h2>Cet appareil</h2>
+      <p class="pc${lignePC().alerte ? ' alerte' : ''}">${esc(lignePC().texte)}</p>
+      <p>${S.depot && S.depot.enAttente() ? `${S.depot.enAttente()} modification(s) pas encore envoyée(s) à GitHub.` : 'Tout est enregistré sur GitHub.'}</p>
+      <div class="outils"><button class="btn" id="nouveauJeton">Changer de jeton</button><button class="btn" id="oublier">Oublier le jeton sur cet appareil</button></div>
+      <small style="color:var(--gris)">« Oublier » efface aussi de cet appareil la copie du journal (utile si tu prêtes ou changes de téléphone).</small>`;
+    $('#oublier', c).addEventListener('click', oublierJeton);
+    $('#nouveauJeton', c).addEventListener('click', () => ecranJeton());
+    $('#cp', c).addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(json); toast('Sauvegarde copiée'); }
+      catch (e) { $('#js', c).select(); toast('Copie refusée : le texte est sélectionné, copie-le à la main.'); }
+    });
+    app.append(c);
+  }
+})();
+</script>
+</body>
+</html>
