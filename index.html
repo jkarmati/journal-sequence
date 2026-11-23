@@ -377,7 +377,7 @@ const Core = (() => {
 
   // ---------- base : dépôt GitHub privé ----------
   // Dépôt des données : réglable sur l'écran du jeton (dépôt d'essai pendant les tests).
-  const DEPOT_DEFAUT = 'jkarmati/journal-3e-donnees';
+  const DEPOT_DEFAUT = 'jkarmati/journal-3e-test';
   const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   const lireLS = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const ecrireLS = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* bloqué */ } };
@@ -400,7 +400,7 @@ const Core = (() => {
         <li>Repository access : <i>Only select repositories</i> → le dépôt ci-dessous.</li>
         <li>Permissions : <i>Contents</i> → <i>Read and write</i>. Puis copie le jeton (il commence par github_pat_).</li>
       </ol>
-      <div class="champ"><label for="jDepot">Dépôt du journal (le dépôt PRIVÉ des données)</label><input id="jDepot" value="${esc(depotChoisi())}" autocomplete="off" autocapitalize="off" spellcheck="false"><small style="color:var(--gris)">Pas journal-sequence, qui contient seulement cette page. Pendant les essais : jkarmati/journal-3e-test ; ensuite : jkarmati/journal-3e-donnees.</small></div>
+      <div class="champ"><label for="jDepot">Dépôt du journal (le dépôt PRIVÉ des données)</label><input id="jDepot" value="${esc(depotChoisi())}" autocomplete="off" autocapitalize="off" spellcheck="false"><small style="color:var(--gris)">Pas journal-sequence, qui contient seulement cette page. C’est jkarmati/journal-3e-test.</small></div>
       <div class="champ"><label for="jJeton">Jeton GitHub</label><input id="jJeton" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
       <div class="outils"><button class="btn principal" id="jOk">Relier cet appareil</button></div>
       <small style="color:var(--gris)">Un jeton par appareil (téléphone, PC) : tu pourras en révoquer un sur GitHub sans toucher aux autres.</small>`;
@@ -408,7 +408,7 @@ const Core = (() => {
     const ok = $('#jOk', c);
     const valider = async () => {
       const depot = $('#jDepot', c).value.trim(), jeton = $('#jJeton', c).value.trim();
-      if (!/^[\w.-]+\/[\w.-]+$/.test(depot)) return ecranJeton('Le dépôt s’écrit « propriétaire/nom », par exemple jkarmati/journal-3e-donnees.');
+      if (!/^[\w.-]+\/[\w.-]+$/.test(depot)) return ecranJeton('Le dépôt s’écrit « propriétaire/nom », par exemple jkarmati/journal-3e-test.');
       if (!jeton) return;
       ok.disabled = true; ok.textContent = 'Vérification…';
       try {
@@ -814,6 +814,8 @@ const Core = (() => {
         aide = `Le texte réel remplacera celui de Pronote au prochain passage (${prochainPassage()}), sauf si Pronote a été modifié à la main depuis ta dernière coche.`;
         boutons = `<button class="btn principal" data-envoi="reel">Envoyer le réel maintenant</button>`;
       }
+      // Texte déjà dans Pronote : renvoi possible quand même (ex. Pronote retouché sans que le Journal le voie).
+      if (!boutons) boutons = `<button class="btn" data-envoi="forcer">Texte identique à Pronote, actualiser quand même</button>`;
     } else if (env.statut === 'erreur') {
       etat = `<div class="etat err">Échec de la saisie ${esc(quand(env.essaiLe))} : ${esc(env.erreur || 'erreur inconnue')}</div>`;
       boutons = `<button class="btn principal" data-envoi="reessayer">Réessayer</button>`;
@@ -832,6 +834,8 @@ const Core = (() => {
     if (bR) bR.addEventListener('click', () => envoyer(reel, 'reel'));
     const bE = d.querySelector('[data-envoi=reessayer]');
     if (bE) bE.addEventListener('click', () => envoyer(complete ? reel : env.texte, complete ? 'reel' : (env.origine || 'prevu')));
+    const bF = d.querySelector('[data-envoi=forcer]');
+    if (bF) bF.addEventListener('click', () => envoyer(complete ? reel : env.texte, complete ? 'reel' : (env.origine || 'prevu')));
     return d;
   }
   function blocCopie(titre, texte, vide) {
