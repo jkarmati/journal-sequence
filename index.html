@@ -278,8 +278,12 @@ const Core = (() => {
     }
     // Un libellé partagé par plusieurs phases n'est « commencé » que si aucune n'est faite en entier.
     const travail = [];
-    if ((s.travail || '').trim()) travail.push(s.travail.trim());
-    for (const it of its) {
+    // Travail remplacé à la main pour cette séance (ici ou dans Pronote) : il remplace tout le travail calculé.
+    const jj = (journal || {})[seanceId] || {};
+    const main = typeof jj.travail === 'string';
+    if (main) { if (jj.travail.trim()) travail.push(jj.travail.trim()); }
+    else if ((s.travail || '').trim()) travail.push(s.travail.trim());
+    if (!main) for (const it of its) {
       const e = it.etat || {};
       if ((e.statut === 'non' || e.statut === 'partiel') && e.suite === 'devoir') {
         const lab = libelle(it);
@@ -732,7 +736,11 @@ const Core = (() => {
     const j = jSeance(s.id);
     // Avant la séance : on montre le texte prévu, tel qu'il est (ou sera) dans Pronote. Ensuite : le réel.
     const prevu = !commencee(j) && j.envoi && j.envoi.texte;
-    const vu = prevu ? { ...j.envoi.texte, pj: j.envoi.texte.pj || [] } : pr;
+    const vu = prevu ? { ...j.envoi.texte, pj: j.envoi.texte.pj || [] } : { ...pr };
+    // Travail : celui remplacé à la main pour la séance, sinon (avant la séance) celui du déroulé actuel.
+    if (typeof j.travail === 'string') vu.travail = j.travail.trim();
+    else if (prevu) vu.travail = (s.travail || '').trim();
+    const pasEncore = prevu && vu.travail !== ((j.envoi.texte.travail || '').trim());
     const c = document.createElement('section');
     c.className = 'carte pronote';
     c.innerHTML = `
@@ -740,13 +748,44 @@ const Core = (() => {
       ${blocCopie('Titre', vu.titre)}
       ${blocCopie('Contenu de la séance', vu.contenu, 'Rien de coché comme fait pour l’instant.')}
       ${blocCopie('Travail à faire', vu.travail, 'Pas de travail à faire.')}
+      <div class="outils"><button class="btn" data-travail="modifier">Remplacer le travail à faire</button>${typeof j.travail === 'string' ? '<button class="btn discret" data-travail="calcul">Revenir au travail du déroulé</button>' : ''}</div>
+      ${typeof j.travail === 'string' ? '<small>Travail remplacé à la main pour cette séance : il part tel quel dans Pronote.</small>' : ''}
+      ${pasEncore ? '<small>Ce travail n’est pas encore dans Pronote : il y sera mis au prochain passage du PC.</small>' : ''}
       ${vu.pj.length ? `<div class="bloc"><b>Pièces jointes</b><div>${vu.pj.map(esc).join('<br>')}</div></div>` : ''}`;
     for (const bt of c.querySelectorAll('[data-copie]')) bt.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(bt.dataset.copie); toast('Copié'); }
       catch (e) { toast('Copie refusée : sélectionne le texte et copie-le à la main.'); }
     });
+    const btM = c.querySelector('[data-travail=modifier]');
+    btM.addEventListener('click', () => {
+      const z = document.createElement('div');
+      z.className = 'champ'; z.style.marginTop = '8px';
+      z.innerHTML = `<label for="trMain">Nouveau travail à faire (vide = pas de travail)</label><textarea id="trMain">${esc(vu.travail || '')}</textarea>
+        <div class="outils"><button class="btn principal" data-ok>Enregistrer et envoyer vers Pronote</button><button class="btn" data-non>Annuler</button></div>`;
+      btM.parentNode.replaceWith(z);
+      $('#trMain', z).focus();
+      $('[data-non]', z).addEventListener('click', () => { render.force = true; render(); });
+      $('[data-ok]', z).addEventListener('click', () => travailMain(s, $('#trMain', z).value));
+    });
+    const btC = c.querySelector('[data-travail=calcul]');
+    if (btC) btC.addEventListener('click', () => travailMain(s, null));
     c.append(blocEnvoi(s, pr));
     return c;
+  }
+  // Remplace (ou rétablit, texte = null) le travail à faire de la séance, puis prépare l'envoi vers Pronote.
+  function travailMain(s, texte) {
+    const q = seq();
+    majJournal(s.id, jj => {
+      if (texte === null) delete jj.travail; else jj.travail = texte.trim();
+      jj.travailLe = new Date().toISOString();
+      const env = jj.envoi;
+      if (!env || !env.texte) return;  // pas encore dans Pronote : le PC enverra le bon texte
+      const base = commencee(jj) ? Core.pronote(q, { ...S.journal, [s.id]: jj }, s.id) : { ...env.texte };
+      const t = { ...env.texte, travail: texte === null ? (commencee(jj) ? base.travail : (s.travail || '').trim()) : texte.trim() };
+      const deja = env.statut === 'envoye' ? { le: env.envoyeLe, texte: env.texte } : (env.dejaEnvoye || null);
+      jj.envoi = { statut: 'a_envoyer', texte: t, origine: env.origine || 'prevu', valideLe: new Date().toISOString(), ...(deja ? { dejaEnvoye: deja } : {}) };
+    });
+    declencher(s);
   }
 
   // ---------- passages du PC ----------
@@ -927,6 +966,7 @@ const Core = (() => {
       const b = clone(S.brouillon);
       b.seances.forEach(Core.recalculer);
       b.modifieEnLigne = true; b.majEnLigneLe = new Date().toISOString();
+      S.seqs[S.seqId] = clone(b); S.brouillon = clone(b);  // le texte Pronote en bas de page suit tout de suite
       await ecrire(`seq/${S.seqId}`, b);
       toast('Déroulé enregistré');
     });
